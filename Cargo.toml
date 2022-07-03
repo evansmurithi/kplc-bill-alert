@@ -1,0 +1,20 @@
+[package]
+name = "kplc-bill-alert"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = { version = "3.2.7", features = ["cargo", "wrap_help"] }
+anyhow = "1.0.58"
+reqwest = { version = "0.11", features = ["json"] }  # requires libssl-dev & pkg-config
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rust_decimal = { version = "1.25", features = ["serde-with-float"] }
+chrono = { version = "0.4", features = ["serde"] }
+async-trait = "0.1.57"
+config = "0.13.2"
+log = "0.4"
+env_logger = "0.9"
