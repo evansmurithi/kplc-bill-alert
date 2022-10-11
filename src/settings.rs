@@ -34,7 +34,7 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
-    fn test_settings_from_file() {
+    fn test_settings_from_file_with_all_fields() {
         let tmp_dir = tempdir().unwrap();
         let file_path = tmp_dir.path().join("config.toml");
 
@@ -50,13 +50,38 @@ user_key = "asd13414nkj1k2j412"
 "###;
         config_file.write_all(conf.as_bytes()).unwrap();
 
-        let settings = Settings::new(file_path.as_path().to_str().unwrap()).unwrap();
+        let result = Settings::new(file_path.as_path().to_str().unwrap());
+        assert!(result.is_ok());
 
+        let settings = result.unwrap();
         assert_eq!(settings.account_number, "123456");
         assert_eq!(settings.basic_auth, "Basic asdasldkasdlasd");
         assert_eq!(settings.pushover.enabled, true);
         assert_eq!(settings.pushover.token, "asdasdasdqe123");
         assert_eq!(settings.pushover.user_key, "asd13414nkj1k2j412");
+
+        tmp_dir.close().unwrap();
+    }
+
+    #[test]
+    fn test_settings_from_file_missing_field() {
+        let tmp_dir = tempdir().unwrap();
+        let file_path = tmp_dir.path().join("config.toml");
+
+        let mut config_file = File::create(&file_path).unwrap();
+        let conf = r###"
+account_number = "123456"
+basic_auth = "Basic asdasldkasdlasd"
+
+[pushover]
+enabled = true
+user_key = "asd13414nkj1k2j412"
+"###;
+        config_file.write_all(conf.as_bytes()).unwrap();
+
+        let result = Settings::new(file_path.as_path().to_str().unwrap());
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string().as_str(), "missing field `token`");
 
         tmp_dir.close().unwrap();
     }
