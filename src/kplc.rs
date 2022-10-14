@@ -7,11 +7,15 @@ use std::collections::HashMap;
 
 use crate::client;
 
-const KPLC_TOKEN_URL: &str = "https://selfservice.kplc.co.ke/api/token";
-const KPLC_BILL_URL: &str = "https://selfservice.kplc.co.ke/api/publicData/2.0.1/";
-
-const KPLC_TOKEN_GRANT_TYPE: &str = "client_credentials";
-const KPLC_TOKEN_SCOPE: &str = "token_public accounts_public attributes_public customers_public documents_public listData_public rccs_public sectorSupplies_public selfReads_public serviceRequests_public services_public streets_public supplies_public users_public workRequests_public publicData_public juaforsure_public calculator_public sscalculator_public token_private accounts_private accounts_public attributes_public attributes_private customers_public customers_private documents_private documents_public listData_public rccs_private rccs_public sectorSupplies_private sectorSupplies_public selfReads_private selfReads_public serviceRequests_private serviceRequests_public services_private services_public streets_public supplies_private supplies_public users_private users_public workRequests_private workRequests_public notification_private outage_private juaforsure_private juaforsure_public prepayment_private pdfbill_private publicData_public selfReadsPeriod_private corporateAccount_private calculator_public sscalculator_public register_public ssaccounts_public addaccount_public summaryLetter_public whtcertificate_public selfService_public";
+#[derive(Deserialize, Debug, Clone)]
+pub struct KPLCSettings {
+    pub account_number: String,
+    pub basic_auth: String,
+    pub token_url: String,
+    pub bill_url: String,
+    pub token_grant_type: String,
+    pub token_scope: String,
+}
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -73,14 +77,18 @@ struct KPLCToken {
 }
 
 pub struct KPLCBillQuery {
+    settings: KPLCSettings,
     http_client: Client,
 }
 
 impl KPLCBillQuery {
-    pub fn new() -> KPLCBillQuery {
+    pub fn new(settings: KPLCSettings) -> KPLCBillQuery {
         let http_client = client::get_http_client().unwrap();
 
-        KPLCBillQuery { http_client }
+        KPLCBillQuery {
+            settings,
+            http_client,
+        }
     }
 
     async fn get_authorization_token(&self, basic_auth: &str) -> Result<String> {
@@ -91,12 +99,12 @@ impl KPLCBillQuery {
         headers.insert(header::AUTHORIZATION, auth_value);
 
         let mut query_params = HashMap::new();
-        query_params.insert("grant_type", KPLC_TOKEN_GRANT_TYPE);
-        query_params.insert("scope", KPLC_TOKEN_SCOPE);
+        query_params.insert("grant_type", self.settings.token_grant_type.as_str());
+        query_params.insert("scope", self.settings.token_scope.as_str());
 
         let kplc_token = self
             .http_client
-            .post(KPLC_TOKEN_URL)
+            .post(self.settings.token_url.as_str())
             .headers(headers)
             .query(&query_params)
             .send()
@@ -107,8 +115,10 @@ impl KPLCBillQuery {
         Ok(kplc_token.access_token)
     }
 
-    pub async fn get_bill(&self, basic_auth: &str, account_number: &str) -> Result<KPLCBillResp> {
-        let auth_token = self.get_authorization_token(basic_auth).await?;
+    pub async fn get_bill(&self) -> Result<KPLCBillResp> {
+        let auth_token = self
+            .get_authorization_token(self.settings.basic_auth.as_str())
+            .await?;
         let mut headers = header::HeaderMap::new();
         headers.insert(
             header::CONTENT_TYPE,
@@ -116,11 +126,11 @@ impl KPLCBillQuery {
         );
 
         let mut query_params = HashMap::new();
-        query_params.insert("accountReference", account_number);
+        query_params.insert("accountReference", self.settings.account_number.as_str());
 
         let kplc_bill = self
             .http_client
-            .get(KPLC_BILL_URL)
+            .get(self.settings.bill_url.as_str())
             .headers(headers)
             .bearer_auth(auth_token)
             .query(&query_params)

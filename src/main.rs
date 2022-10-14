@@ -60,12 +60,10 @@ async fn main() {
         }
     };
 
-    let kplc_query = KPLCBillQuery::new();
+    let kplc_settings = settings.kplc.clone();
+    let kplc_query = KPLCBillQuery::new(kplc_settings);
     info!("fetching bill from KPLC");
-    let bill = match kplc_query
-        .get_bill(&settings.basic_auth, &settings.account_number)
-        .await
-    {
+    let bill = match kplc_query.get_bill().await {
         Ok(bill) => {
             info!("done fetching bill from KPLC");
             bill

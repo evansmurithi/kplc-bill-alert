@@ -1,15 +1,13 @@
 use anyhow::Result;
 use config::{Config, ConfigError};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
-use crate::channels::pushover::PushoverSettings;
+use crate::{channels::pushover::PushoverSettings, kplc::KPLCSettings};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub struct Settings {
-    pub account_number: String,
-    pub basic_auth: String,
+    pub kplc: KPLCSettings,
 
-    // pushover config
     pub pushover: PushoverSettings,
 }
 
@@ -29,8 +27,8 @@ mod tests {
 
     use super::Settings;
 
-    use std::fs::File;
     use pretty_assertions::assert_eq;
+    use std::fs::File;
     use tempfile::tempdir;
 
     #[test]
@@ -40,13 +38,19 @@ mod tests {
 
         let mut config_file = File::create(&file_path).unwrap();
         let conf = r###"
+[kplc]
 account_number = "123456"
 basic_auth = "Basic asdasldkasdlasd"
+token_url = "https://selfservice.kplc.co.ke/api/token"
+bill_url = "https://selfservice.kplc.co.ke/api/publicData/2.0.1/"
+token_grant_type = "client_credentials"
+token_scope = "token_public"
 
 [pushover]
 enabled = true
 token = "asdasdasdqe123"
 user_key = "asd13414nkj1k2j412"
+api_url = "https://api.pushover.net/1/messages.json"
 "###;
         config_file.write_all(conf.as_bytes()).unwrap();
 
@@ -54,8 +58,13 @@ user_key = "asd13414nkj1k2j412"
         assert!(result.is_ok());
 
         let settings = result.unwrap();
-        assert_eq!(settings.account_number, "123456");
-        assert_eq!(settings.basic_auth, "Basic asdasldkasdlasd");
+        assert_eq!(settings.kplc.account_number, "123456");
+        assert_eq!(settings.kplc.basic_auth, "Basic asdasldkasdlasd");
+        assert_eq!(settings.kplc.token_url, "https://selfservice.kplc.co.ke/api/token");
+        assert_eq!(settings.kplc.bill_url, "https://selfservice.kplc.co.ke/api/publicData/2.0.1/");
+        assert_eq!(settings.kplc.token_grant_type, "client_credentials");
+        assert_eq!(settings.kplc.token_scope, "token_public");
+
         assert_eq!(settings.pushover.enabled, true);
         assert_eq!(settings.pushover.token, "asdasdasdqe123");
         assert_eq!(settings.pushover.user_key, "asd13414nkj1k2j412");
@@ -70,18 +79,27 @@ user_key = "asd13414nkj1k2j412"
 
         let mut config_file = File::create(&file_path).unwrap();
         let conf = r###"
+[kplc]
 account_number = "123456"
 basic_auth = "Basic asdasldkasdlasd"
+token_url = "https://selfservice.kplc.co.ke/api/token"
+bill_url = "https://selfservice.kplc.co.ke/api/publicData/2.0.1/"
+token_grant_type = "client_credentials"
+token_scope = "token_public"
 
 [pushover]
 enabled = true
 user_key = "asd13414nkj1k2j412"
+api_url = "https://api.pushover.net/1/messages.json"
 "###;
         config_file.write_all(conf.as_bytes()).unwrap();
 
         let result = Settings::new(file_path.as_path().to_str().unwrap());
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err().to_string().as_str(), "missing field `token`");
+        assert_eq!(
+            result.unwrap_err().to_string().as_str(),
+            "missing field `token`"
+        );
 
         tmp_dir.close().unwrap();
     }
