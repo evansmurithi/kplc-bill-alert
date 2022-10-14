@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use chrono::prelude::{DateTime, Utc};
 use reqwest::{header, Client};
 use rust_decimal::Decimal;
@@ -19,7 +19,7 @@ pub struct KPLCSettings {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
-pub struct KPLCBillResp {
+pub struct KPLCBill {
     pub data: KPLCBillData,
 }
 
@@ -75,6 +75,35 @@ struct KPLCToken {
     access_token: String,
 }
 
+#[derive(Deserialize, Debug)]
+#[serde(untagged)]
+enum KPLCTokenResponse {
+    Error {
+        error_description: String,
+        error: String,
+    },
+    Success(KPLCToken),
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
+struct KPLCBillError {
+    http_status: usize,
+    code: String,
+    msg_user: String,
+    help_link: String,
+    msg_developer: String,
+    error_sequence: String,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(untagged, rename_all = "camelCase")]
+enum KPLCBillResponse {
+    Success(KPLCBill),
+    Error(KPLCBillError),
+}
+
 pub struct KPLCBillQuery {
     settings: KPLCSettings,
     http_client: Client,
@@ -102,20 +131,30 @@ impl KPLCBillQuery {
             ("scope", self.settings.token_scope.as_str()),
         ];
 
-        let kplc_token = self
+        let response = self
             .http_client
             .post(self.settings.token_url.as_str())
             .headers(headers)
             .query(&query_params)
             .send()
             .await?
-            .json::<KPLCToken>()
+            .json::<KPLCTokenResponse>()
             .await?;
 
-        Ok(kplc_token.access_token)
+        match response {
+            KPLCTokenResponse::Success(kplc_token) => Ok(kplc_token.access_token),
+            KPLCTokenResponse::Error {
+                error_description,
+                error,
+            } => Err(anyhow!(
+                "failed to get access token: code: {} message: {}",
+                error,
+                error_description
+            )),
+        }
     }
 
-    pub async fn get_bill(&self, account_number: &str) -> Result<KPLCBillResp> {
+    pub async fn get_bill(&self, account_number: &str) -> Result<KPLCBill> {
         let auth_token = self
             .get_authorization_token(self.settings.basic_auth.as_str())
             .await?;
@@ -128,7 +167,7 @@ impl KPLCBillQuery {
         let mut query_params = HashMap::new();
         query_params.insert("accountReference", account_number);
 
-        let kplc_bill = self
+        let response = self
             .http_client
             .get(self.settings.bill_url.as_str())
             .headers(headers)
@@ -136,10 +175,13 @@ impl KPLCBillQuery {
             .query(&query_params)
             .send()
             .await?
-            .json::<KPLCBillResp>()
+            .json::<KPLCBillResponse>()
             .await?;
 
-        Ok(kplc_bill)
+        match response {
+            KPLCBillResponse::Success(kplc_bill) => Ok(kplc_bill),
+            KPLCBillResponse::Error(err) => Err(anyhow!("failed to get bill: {}", err.msg_user)),
+        }
     }
 }
 
@@ -148,6 +190,7 @@ mod tests {
     use std::{env, fs};
 
     use mockito::mock;
+    use pretty_assertions::assert_eq;
     use reqwest::Client;
 
     use super::{KPLCBillQuery, KPLCSettings};
@@ -181,7 +224,7 @@ mod tests {
 
         let token_body_response = get_body("kplc_token.json");
 
-        let _m1 = mock(
+        let m1 = mock(
             "POST",
             "/token?grant_type=client_credentials&scope=public_read",
         )
@@ -193,7 +236,7 @@ mod tests {
 
         let bill_body_response = get_body("kplc_bill_balance.json");
 
-        let _m2 = mock("GET", "/bill?accountReference=12345")
+        let m2 = mock("GET", "/bill?accountReference=12345")
             .match_header("content-type", "application/json")
             .match_header("authorization", "Bearer 00cfdd3d35103c264f5cab9440aa6c2e")
             .with_status(200)
@@ -203,9 +246,81 @@ mod tests {
 
         let result = kplc.get_bill("12345").await;
 
-        _m1.assert();
-        _m2.assert();
+        m1.assert();
+        m2.assert();
 
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_get_bill_fail_getting_token() {
+        let kplc = make_kplc();
+
+        let m1 = mock(
+            "POST",
+            "/token?grant_type=client_credentials&scope=public_read",
+        )
+        .match_header("authorization", "Basic 123qwdqwqwe")
+        .with_status(400)
+        .with_header("content-type", "application/json")
+        .with_body(
+            r#"{"error_description": "Client Authentication failed.", "error": "invalid_client"}"#,
+        )
+        .create();
+
+        let bill_body_response = get_body("kplc_bill_balance.json");
+
+        let m2 = mock("GET", "/bill?accountReference=12345")
+            .match_header("content-type", "application/json")
+            .match_header("authorization", "Bearer 00cfdd3d35103c264f5cab9440aa6c2e")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(bill_body_response.as_str())
+            .create();
+
+        let result = kplc.get_bill("12345").await;
+
+        m1.assert();
+        assert_eq!(m2.matched(), false);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string().as_str(),
+            "failed to get access token: code: invalid_client message: Client Authentication failed."
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_bill_fail_getting_bill() {
+        let kplc = make_kplc();
+
+        let token_body_response = get_body("kplc_token.json");
+
+        let m1 = mock(
+            "POST",
+            "/token?grant_type=client_credentials&scope=public_read",
+        )
+        .match_header("authorization", "Basic 123qwdqwqwe")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(token_body_response)
+        .create();
+
+        let m2 = mock("GET", "/bill?accountReference=12345")
+            .match_header("content-type", "application/json")
+            .match_header("authorization", "Bearer 00cfdd3d35103c264f5cab9440aa6c2e")
+            .with_status(400)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"httpStatus":422,"code":"SS000106","msgUser":"The account number 12345 doesn´t exist.","helpLink":"SS000106","msgDeveloper":"The account number doesn't exist.","errorSequence":"570120b7:183d09c9ad7:23b9"}"#)
+            .create();
+
+        let result = kplc.get_bill("12345").await;
+
+        m1.assert();
+        m2.assert();
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string().as_str(),
+            "failed to get bill: The account number 12345 doesn´t exist."
+        );
     }
 }

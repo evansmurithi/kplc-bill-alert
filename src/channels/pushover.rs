@@ -1,4 +1,4 @@
-use crate::{client, kplc::KPLCBillResp, settings::Settings};
+use crate::{client, kplc::KPLCBill, settings::Settings};
 use anyhow::{anyhow, Ok, Result};
 use async_trait::async_trait;
 use reqwest::Client;
@@ -46,7 +46,7 @@ impl Channel for Pushover {
         self.settings.enabled
     }
 
-    async fn send_alert(&self, bill: &KPLCBillResp) -> Result<(), anyhow::Error> {
+    async fn send_alert(&self, bill: &KPLCBill) -> Result<(), anyhow::Error> {
         let title = self.get_title(bill);
         let message = self.get_message(bill);
 
@@ -79,14 +79,14 @@ impl Channel for Pushover {
 }
 
 impl Pushover {
-    fn get_title(&self, bill: &KPLCBillResp) -> String {
+    fn get_title(&self, bill: &KPLCBill) -> String {
         let account_ref = bill.data.account_reference.as_str();
         let billing_period = bill.data.col_bills[0].billing_period.as_str();
 
         format!("KPLC Bill (#{account_ref}): {billing_period}")
     }
 
-    fn get_message(&self, bill: &KPLCBillResp) -> String {
+    fn get_message(&self, bill: &KPLCBill) -> String {
         let balance = bill.data.balance.abs();
         let due_date = bill.data.col_bills[0].due_date.format("%d %B, %Y");
 
@@ -98,7 +98,7 @@ impl Pushover {
 mod tests {
     use std::{env, fs::File, path::Path};
 
-    use crate::{channels::Channel, kplc::KPLCBillResp};
+    use crate::{channels::Channel, kplc::KPLCBill};
     use mockito::mock;
     use pretty_assertions::assert_eq;
     use reqwest::Client;
@@ -120,7 +120,7 @@ mod tests {
         }
     }
 
-    fn get_kplc_bill_resp(filename: &str) -> KPLCBillResp {
+    fn get_kplc_bill_resp(filename: &str) -> KPLCBill {
         let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
         let filepath = format!("{base_dir}/resources/test/{filename}");
         let path = Path::new(filepath.as_str());
@@ -143,7 +143,7 @@ mod tests {
             )
             .finish();
 
-        let _m = mock("POST", "/")
+        let m = mock("POST", "/")
             .match_header("content-type", "application/x-www-form-urlencoded")
             .match_body(body.as_str())
             .with_status(200)
@@ -152,7 +152,7 @@ mod tests {
             .create();
 
         let result = p.send_alert(&bill).await;
-        _m.assert();
+        m.assert();
         assert!(result.is_ok());
     }
 
@@ -161,14 +161,14 @@ mod tests {
         let p = make_pushover();
         let bill = get_kplc_bill_resp("kplc_bill_balance.json");
 
-        let _m = mock("POST", "/")
+        let m = mock("POST", "/")
             .with_status(400)
             .with_header("content-type", "application/json")
             .with_body("{\"user\":\"invalid\",\"errors\":[\"user identifier is invalid\"],\"status\":0,\"request\":\"5042853c-402d-4a18-abcb-168734a801de\"}")
             .create();
 
         let result = p.send_alert(&bill).await;
-        _m.assert();
+        m.assert();
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string().as_str(),

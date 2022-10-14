@@ -1,4 +1,4 @@
-use crate::{kplc::KPLCBillResp, settings::Settings};
+use crate::{kplc::KPLCBill, settings::Settings};
 use anyhow::Result;
 use async_trait::async_trait;
 
@@ -16,7 +16,7 @@ pub trait Channel {
         false
     }
 
-    async fn send_alert(&self, message: &KPLCBillResp) -> Result<()>;
+    async fn send_alert(&self, message: &KPLCBill) -> Result<()>;
 }
 
 pub fn get_channels(settings: &Settings) -> Vec<Box<dyn Channel>> {
