@@ -87,7 +87,7 @@ impl Pushover {
     }
 
     fn get_message(&self, bill: &KPLCBillResp) -> String {
-        let balance = bill.data.balance;
+        let balance = bill.data.balance.abs();
         let due_date = bill.data.col_bills[0].due_date.format("%d %B, %Y");
 
         format!("Balance of KES {balance} is due on {due_date}!")
@@ -139,7 +139,7 @@ mod tests {
             .append_pair("title", "KPLC Bill (#1234567): 10 - October 2022")
             .append_pair(
                 "message",
-                "Balance of KES -3592.34 is due on 25 October, 2022!",
+                "Balance of KES 3592.34 is due on 25 October, 2022!",
             )
             .finish();
 
