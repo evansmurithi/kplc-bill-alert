@@ -25,6 +25,7 @@ mod settings;
 #[tokio::main]
 async fn main() {
     let matches = command!()
+        .arg(arg!(--"account-number" <NUMBER> "Account number to query").required(true))
         .arg(arg!(-c --config <FILE> "Config file to use").required(true))
         .arg(
             arg!(--"log-level" <LEVEL> "Level of logging")
@@ -40,6 +41,7 @@ async fn main() {
         )
         .get_matches();
 
+    let account_number = matches.get_one::<String>("account-number").unwrap();
     let config_path = matches.get_one::<String>("config").unwrap();
     let log_level = matches.get_one::<String>("log-level").unwrap();
     let log_style = matches.get_one::<String>("log-style").unwrap();
@@ -63,7 +65,7 @@ async fn main() {
     let kplc_settings = settings.kplc.clone();
     let kplc_query = KPLCBillQuery::new(kplc_settings);
     info!("fetching bill from KPLC");
-    let bill = match kplc_query.get_bill().await {
+    let bill = match kplc_query.get_bill(account_number).await {
         Ok(bill) => {
             info!("done fetching bill from KPLC");
             bill

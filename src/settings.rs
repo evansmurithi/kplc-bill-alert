@@ -39,7 +39,6 @@ mod tests {
         let mut config_file = File::create(&file_path).unwrap();
         let conf = r###"
 [kplc]
-account_number = "123456"
 basic_auth = "Basic asdasldkasdlasd"
 token_url = "https://selfservice.kplc.co.ke/api/token"
 bill_url = "https://selfservice.kplc.co.ke/api/publicData/2.0.1/"
@@ -58,7 +57,6 @@ api_url = "https://api.pushover.net/1/messages.json"
         assert!(result.is_ok());
 
         let settings = result.unwrap();
-        assert_eq!(settings.kplc.account_number, "123456");
         assert_eq!(settings.kplc.basic_auth, "Basic asdasldkasdlasd");
         assert_eq!(settings.kplc.token_url, "https://selfservice.kplc.co.ke/api/token");
         assert_eq!(settings.kplc.bill_url, "https://selfservice.kplc.co.ke/api/publicData/2.0.1/");
@@ -80,7 +78,6 @@ api_url = "https://api.pushover.net/1/messages.json"
         let mut config_file = File::create(&file_path).unwrap();
         let conf = r###"
 [kplc]
-account_number = "123456"
 basic_auth = "Basic asdasldkasdlasd"
 token_url = "https://selfservice.kplc.co.ke/api/token"
 bill_url = "https://selfservice.kplc.co.ke/api/publicData/2.0.1/"

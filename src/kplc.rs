@@ -9,7 +9,6 @@ use crate::client;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct KPLCSettings {
-    pub account_number: String,
     pub basic_auth: String,
     pub token_url: String,
     pub bill_url: String,
@@ -116,7 +115,7 @@ impl KPLCBillQuery {
         Ok(kplc_token.access_token)
     }
 
-    pub async fn get_bill(&self) -> Result<KPLCBillResp> {
+    pub async fn get_bill(&self, account_number: &str) -> Result<KPLCBillResp> {
         let auth_token = self
             .get_authorization_token(self.settings.basic_auth.as_str())
             .await?;
@@ -127,7 +126,7 @@ impl KPLCBillQuery {
         );
 
         let mut query_params = HashMap::new();
-        query_params.insert("accountReference", self.settings.account_number.as_str());
+        query_params.insert("accountReference", account_number);
 
         let kplc_bill = self
             .http_client
@@ -155,7 +154,6 @@ mod tests {
 
     fn make_kplc() -> KPLCBillQuery {
         let settings = KPLCSettings {
-            account_number: "12345".to_string(),
             basic_auth: "Basic 123qwdqwqwe".to_string(),
             token_url: format!("{}/token", mockito::server_url()),
             bill_url: format!("{}/bill", mockito::server_url()),
@@ -203,7 +201,7 @@ mod tests {
             .with_body(bill_body_response.as_str())
             .create();
 
-        let result = kplc.get_bill().await;
+        let result = kplc.get_bill("12345").await;
 
         _m1.assert();
         _m2.assert();
