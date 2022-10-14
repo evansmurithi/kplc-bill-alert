@@ -1,0 +1,6 @@
+{
+    "access_token": "00cfdd3d35103c264f5cab9440aa6c2e",
+    "scope": "accounts_private am_application_scope attributes_public calculator_public corporateAccount_private customers_private customers_public juaforsure_public listData_public notification_private outage_private pdfbill_private prepayment_private publicData_public rccs_private rccs_public register_public sectorSupplies_private sectorSupplies_public selfReadsPeriod_private selfReads_private selfService_public serviceRequests_private serviceRequests_public services_private sscalculator_public streets_public supplies_public users_private users_public workRequests_private workRequests_public",
+    "token_type": "Bearer",
+    "expires_in": 3245
+}

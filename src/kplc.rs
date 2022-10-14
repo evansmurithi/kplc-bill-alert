@@ -98,9 +98,10 @@ impl KPLCBillQuery {
         let mut headers = header::HeaderMap::new();
         headers.insert(header::AUTHORIZATION, auth_value);
 
-        let mut query_params = HashMap::new();
-        query_params.insert("grant_type", self.settings.token_grant_type.as_str());
-        query_params.insert("scope", self.settings.token_scope.as_str());
+        let query_params = &[
+            ("grant_type", self.settings.token_grant_type.as_str()),
+            ("scope", self.settings.token_scope.as_str()),
+        ];
 
         let kplc_token = self
             .http_client
@@ -140,5 +141,73 @@ impl KPLCBillQuery {
             .await?;
 
         Ok(kplc_bill)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{env, fs};
+
+    use mockito::mock;
+    use reqwest::Client;
+
+    use super::{KPLCBillQuery, KPLCSettings};
+
+    fn make_kplc() -> KPLCBillQuery {
+        let settings = KPLCSettings {
+            account_number: "12345".to_string(),
+            basic_auth: "Basic 123qwdqwqwe".to_string(),
+            token_url: format!("{}/token", mockito::server_url()),
+            bill_url: format!("{}/bill", mockito::server_url()),
+            token_grant_type: "client_credentials".to_string(),
+            token_scope: "public_read".to_string(),
+        };
+        let http_client = Client::new();
+
+        KPLCBillQuery {
+            settings,
+            http_client,
+        }
+    }
+
+    fn get_body(filename: &str) -> String {
+        let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+        let filepath = format!("{base_dir}/resources/test/{filename}");
+
+        fs::read_to_string(filepath).unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_get_bill_successfully() {
+        let kplc = make_kplc();
+
+        let token_body_response = get_body("kplc_token.json");
+
+        let _m1 = mock(
+            "POST",
+            "/token?grant_type=client_credentials&scope=public_read",
+        )
+        .match_header("authorization", "Basic 123qwdqwqwe")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(token_body_response.as_str())
+        .create();
+
+        let bill_body_response = get_body("kplc_bill_balance.json");
+
+        let _m2 = mock("GET", "/bill?accountReference=12345")
+            .match_header("content-type", "application/json")
+            .match_header("authorization", "Bearer 00cfdd3d35103c264f5cab9440aa6c2e")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(bill_body_response.as_str())
+            .create();
+
+        let result = kplc.get_bill().await;
+
+        _m1.assert();
+        _m2.assert();
+
+        assert!(result.is_ok());
     }
 }
