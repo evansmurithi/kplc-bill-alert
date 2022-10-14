@@ -152,8 +152,8 @@ mod tests {
             .create();
 
         let result = p.send_alert(&bill).await;
-        assert!(result.is_ok());
         _m.assert();
+        assert!(result.is_ok());
     }
 
     #[tokio::test]
@@ -168,6 +168,7 @@ mod tests {
             .create();
 
         let result = p.send_alert(&bill).await;
+        _m.assert();
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string().as_str(),
