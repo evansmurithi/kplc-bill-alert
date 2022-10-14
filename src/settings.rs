@@ -58,8 +58,14 @@ api_url = "https://api.pushover.net/1/messages.json"
 
         let settings = result.unwrap();
         assert_eq!(settings.kplc.basic_auth, "Basic asdasldkasdlasd");
-        assert_eq!(settings.kplc.token_url, "https://selfservice.kplc.co.ke/api/token");
-        assert_eq!(settings.kplc.bill_url, "https://selfservice.kplc.co.ke/api/publicData/2.0.1/");
+        assert_eq!(
+            settings.kplc.token_url,
+            "https://selfservice.kplc.co.ke/api/token"
+        );
+        assert_eq!(
+            settings.kplc.bill_url,
+            "https://selfservice.kplc.co.ke/api/publicData/2.0.1/"
+        );
         assert_eq!(settings.kplc.token_grant_type, "client_credentials");
         assert_eq!(settings.kplc.token_scope, "token_public");
 
